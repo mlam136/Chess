@@ -1,0 +1,28 @@
+# P0 阶段核心配置
+# 全局超参数（运行时可热更新）
+
+N_AGENTS: 8                    # 初始 AI 棋手数量 (≥4, 偶数)
+WINDOW_X: 10                   # 计分滑动窗口（最近 X 局）(≥3)
+START_Y: 5                     # 身份分配起始局（第 Y 局后生效）(≥2)
+TIMEOUT_T: 120                 # 每步思考超时 (秒) (>0)
+MCTS_ITERATIONS: 50            # MCTS 每步搜索迭代次数 (≥10)
+REPLAY_BUFFER_SIZE: 500        # 回放缓冲区容量（局数）(≥50)
+BATCH_SIZE: 64                 # 蒸馏/自博弈训练 batch size
+LR: 0.001                      # 学习率
+ALPHA: 1.0                     # 蒸馏 loss 权重 ([0, ∞))
+BETA: 0.5                      # 自博弈 loss 权重 ([0, ∞))
+GAMMA: 0.01                    # L2 正则权重 ([0, ∞))
+CONCURRENT_GAMES: 4            # 最大并发对局数 (≤ N_AGENTS // 2)
+DISTILL_RATIO: "50:50"         # Teacher:Student 比例 (固定)
+
+# P0 阶段特定配置
+VISUALIZATION:
+  enabled: true
+  board_size: 512              # 棋盘像素大小
+  fps: 60                      # 刷新帧率
+  grid_rows: 2                 # 网格行数
+  grid_cols: 2                 # 网格列数
+
+ASSETS:
+  board_image: "resources/png/board/rect-8x8.png"
+  pieces_dir: "resources/png/pieces"
