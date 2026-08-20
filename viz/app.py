@@ -13,6 +13,7 @@ from engine.scoring import ScoringSystem
 from .assets import AssetLoader
 from .board_widget import BoardWidget
 from .scoreboard import ScoreboardPanel
+from .loss_chart import LossChart
 
 
 class VisualizationApp:
@@ -28,6 +29,7 @@ class VisualizationApp:
         grid_rows: int = 2,
         grid_cols: int = 2,
         scheduler: Optional[MatchScheduler] = None,
+        show_loss_chart: bool = True,
     ):
         """
         初始化可视化应用
@@ -38,15 +40,17 @@ class VisualizationApp:
             grid_rows: 棋盘网格行数
             grid_cols: 棋盘网格列数
             scheduler: 比赛调度器
+            show_loss_chart: 是否显示 loss 曲线图
         """
         self.width = width
         self.height = height
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
+        self.show_loss_chart = show_loss_chart
         
         # Pygame 初始化
         pygame.init()
-        pygame.display.set_caption("ChessRL v1.0 - P0 Demo")
+        pygame.display.set_caption("ChessRL v1.0 - P4 Monitoring")
         self.screen = pygame.display.set_mode((width, height))
         self.clock = pygame.time.Clock()
         
@@ -62,20 +66,34 @@ class VisualizationApp:
         self._board_widgets: Dict[str, BoardWidget] = {}
         
         # 计分板面板
-        scoreboard_width = 300
+        scoreboard_width = 280 if show_loss_chart else 300
+        chart_width = 350 if show_loss_chart else 0
+        
         self._scoreboard = ScoreboardPanel(
-            x=width - scoreboard_width - 10,
+            x=width - scoreboard_width - chart_width - 10,
             y=10,
             width=scoreboard_width,
-            height=height - 20,
+            height=height // 2 - 30,
             scoring_system=self.scoring_system,
         )
+        
+        # Loss 曲线图
+        self._loss_chart: Optional[LossChart] = None
+        if show_loss_chart:
+            self._loss_chart = LossChart(
+                x=width - chart_width - 10,
+                y=height // 2 + 10,
+                width=chart_width,
+                height=height // 2 - 20,
+                max_points=100,
+            )
         
         # 游戏到棋盘的映射
         self._game_board_map: Dict[str, str] = {}  # game_id -> board_widget_key
         
         # 计算棋盘区域大小
-        available_width = width - scoreboard_width - 40
+        right_panel_width = scoreboard_width + chart_width + 20 if show_loss_chart else scoreboard_width + 10
+        available_width = width - right_panel_width - 40
         available_height = height - 60  # 留出顶部栏空间
         
         self.board_size = min(
@@ -246,6 +264,33 @@ class VisualizationApp:
         self._update_teacher_student_roles()
         self._scoreboard.draw(self.screen)
         
+        # 绘制 Loss 曲线图
+        if se    def add_loss_data(
+        self,
+        step: int,
+        total_loss: float,
+        distill_loss: float = 0.0,
+        selfplay_loss: float = 0.0,
+        reg_loss: float = 0.0,
+    ) -> None:
+        """
+        添加 loss 数据到图表
+        
+        Args:
+            step: 训练步数
+            total_loss: 总 loss
+            distill_loss: 蒸馏 loss
+            selfplay_loss: 自博弈 loss
+            reg_loss: 正则化 loss
+        """
+        if self._loss_chart is not None:
+            self._loss_chart.add_data_point(
+                step, total_loss, distill_loss, selfplay_loss, reg_loss
+            )
+
+lf._loss_chart is not None:
+            self._loss_chart.draw(self.screen)
+
         pygame.display.flip()
     
     def update(self, dt: float) -> None:
