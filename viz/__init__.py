@@ -5,6 +5,7 @@ from .board_widget import BoardWidget
 from .scoreboard import ScoreboardPanel
 from .assets import AssetLoader
 from .loss_chart import LossChart, MultiChartPanel
+from .log_panel import LogPanel
 
 __all__ = [
     'VisualizationApp',
@@ -13,4 +14,5 @@ __all__ = [
     'AssetLoader',
     'LossChart',
     'MultiChartPanel',
+    'LogPanel',
 ]

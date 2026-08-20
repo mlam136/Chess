@@ -14,6 +14,7 @@ from .assets import AssetLoader
 from .board_widget import BoardWidget
 from .scoreboard import ScoreboardPanel
 from .loss_chart import LossChart
+from .log_panel import LogPanel
 
 
 class VisualizationApp:
@@ -87,6 +88,16 @@ class VisualizationApp:
                 height=height // 2 - 20,
                 max_points=100,
             )
+        
+        # 日志面板
+        log_panel_width = 350 if show_loss_chart else 400
+        self._log_panel = LogPanel(
+            x=width - log_panel_width - 10,
+            y=height // 2 + 10,
+            width=log_panel_width,
+            height=height // 2 - 20,
+            max_lines=15,
+        )
         
         # 游戏到棋盘的映射
         self._game_board_map: Dict[str, str] = {}  # game_id -> board_widget_key
@@ -264,8 +275,15 @@ class VisualizationApp:
         self._update_teacher_student_roles()
         self._scoreboard.draw(self.screen)
         
-        # 绘制 Loss 曲线图
-        if se    def add_loss_data(
+        # 绘制 Loss 曲线图或日志面板（二选一，优先显示 Loss 曲线）
+        if self._loss_chart is not None:
+            self._loss_chart.draw(self.screen)
+        else:
+            self._log_panel.draw(self.screen)
+
+        pygame.display.flip()
+    
+    def add_loss_data(
         self,
         step: int,
         total_loss: float,
@@ -287,11 +305,16 @@ class VisualizationApp:
             self._loss_chart.add_data_point(
                 step, total_loss, distill_loss, selfplay_loss, reg_loss
             )
-
-lf._loss_chart is not None:
-            self._loss_chart.draw(self.screen)
-
-        pygame.display.flip()
+    
+    def add_log(self, message: str, level: str = "INFO") -> None:
+        """
+        添加日志消息
+        
+        Args:
+            message: 日志消息
+            level: 日志级别 (INFO, WARNING, ERROR, DEBUG)
+        """
+        self._log_panel.add_log(message, level)
     
     def update(self, dt: float) -> None:
         """更新逻辑（动画等）"""
