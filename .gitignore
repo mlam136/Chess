@@ -1,52 +1,39 @@
 ```
-# Logs and training outputs
-logs/
-*.log
-
-# TensorFlow events files
-**/events.out.tfevents.*
-
-# Dependencies
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.venv/
-venv/
-env/
-.Python
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Environment variables
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
 .env
 .env.local
-.env.*
-!.env.example
+*.env.*
 
-# IDE and editor files
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
 
-# Build and distribution
+# Dependencies
+.venv/
+venv/
+node_modules/
+
+# Build artifacts
 dist/
 build/
-*.egg-info/
-.tox/
+target/
+
+# Coverage
 .coverage
+coverage/
 htmlcov/
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Cache
+.mypy_cache/
+.pytest_cache/
 ```

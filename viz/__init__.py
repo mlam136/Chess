@@ -4,10 +4,13 @@ from .app import VisualizationApp
 from .board_widget import BoardWidget
 from .scoreboard import ScoreboardPanel
 from .assets import AssetLoader
+from .loss_chart import LossChart, MultiChartPanel
 
 __all__ = [
     'VisualizationApp',
     'BoardWidget',
     'ScoreboardPanel',
     'AssetLoader',
+    'LossChart',
+    'MultiChartPanel',
 ]
