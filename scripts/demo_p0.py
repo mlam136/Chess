@@ -107,8 +107,8 @@ async def run_p0_demo():
             
             if success:
                 move_count += 1
-                san = game.board.internal_board.san(result.move)
-                print(f"Move {move_count}: {current_player.agent_id} played {san}")
+                # 使用 UCI 格式显示走法（因为棋盘已经更新，无法再用 san() 获取）
+                print(f"Move {move_count}: {current_player.agent_id} played {result.move.uci()}")
             
             # 短暂延迟让 UI 更新
             await asyncio.sleep(0.1)
