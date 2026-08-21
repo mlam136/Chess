@@ -7,6 +7,7 @@ from .encoder import encode_board
 from .loss import compute_loss, ModelOutput, MCTSTarget
 from .replay_buffer import ReplayBuffer, StepRecord, Batch
 from .trainer import Trainer, TrainingConfig
+from .checkpoint import CheckpointManager, save_checkpoint, load_checkpoint
 
 __all__ = [
     'AlphaZeroResNet',
@@ -21,4 +22,7 @@ __all__ = [
     'Batch',
     'Trainer',
     'TrainingConfig',
+    'CheckpointManager',
+    'save_checkpoint',
+    'load_checkpoint',
 ]
