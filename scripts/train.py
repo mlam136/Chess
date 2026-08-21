@@ -4,13 +4,14 @@
 
 用法:
     python scripts/train.py --epochs 100 --batch-size 64
+    python scripts/train.py --epochs 100 --visualize  # 带可视化对局
 """
 
 import argparse
 import asyncio
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 
 async def run_training(
@@ -19,7 +20,9 @@ async def run_training(
     learning_rate: float = 1e-3,
     num_agents: int = 8,
     checkpoint_path: Optional[str] = None,
-    verbose: bool = False
+    verbose: bool = False,
+    visualize: bool = False,
+    visualize_interval: int = 10
 ):
     """
     运行训练循环
@@ -31,6 +34,8 @@ async def run_training(
         num_agents: 智能体数量
         checkpoint_path: 检查点路径
         verbose: 详细日志
+        visualize: 是否启用可视化对局
+        visualize_interval: 可视化间隔（多少轮显示一次）
     """
     print("初始化训练环境...")
     
@@ -112,8 +117,22 @@ async def run_training(
     scheduler = GameScheduler(agents, max_concurrent=config.get('CONCURRENT_GAMES', 4))
     score_manager = ScoreManager(window_size=config.get('WINDOW_X', 10))
     
+    # 可视化回调
+    viz_callback = None
+    if visualize:
+        try:
+            from viz.board_widget import ChessBoardWidget
+            viz_callback = create_viz_callback(viz_interval=visualize_interval)
+            print(f"✓ 可视化已启用 (每 {visualize_interval} 轮显示一次)")
+        except ImportError as e:
+            print(f"⚠ 可视化模块不可用：{e}")
+            print("  继续无可视化训练...")
+            visualize = False
+    
     # 训练循环
     print(f"\n开始训练 - {num_epochs} 轮")
+    if visualize:
+        print("模式：带可视化对局")
     print("=" * 60)
     
     start_time = time.time()
@@ -126,8 +145,22 @@ async def run_training(
         
         # 2. 执行对局
         games_completed = 0
+        displayed_games = 0
+        
         for game in matchups:
-            result = await scheduler.play_game(game)
+            # 检查是否需要可视化此局
+            should_visualize = (
+                visualize and 
+                viz_callback and 
+                epoch % visualize_interval == 0 and
+                displayed_games == 0  # 每轮只显示一局
+            )
+            
+            if should_visualize:
+                result = await scheduler.play_game(game, callback=viz_callback)
+                displayed_games += 1
+            else:
+                result = await scheduler.play_game(game)
             
             if result:
                 games_completed += 1
@@ -207,6 +240,48 @@ async def run_training(
     }
 
 
+def create_viz_callback(viz_interval: int = 10):
+    """
+    创建可视化回调函数
+    
+    Args:
+        viz_interval: 可视化间隔
+        
+    Returns:
+        异步回调函数，接收 (board, move, info) 参数
+    """
+    from viz.board_widget import ChessBoardWidget
+    import chess
+    
+    # 创建棋盘 widget（文本模式）
+    board_widget = ChessBoardWidget()
+    
+    async def on_move(board: chess.Board, move: chess.Move, info: dict):
+        """对局移动回调"""
+        game_id = info.get('game_id', '?')
+        move_num = info.get('move_number', 0)
+        white_name = info.get('white_name', 'White')
+        black_name = info.get('black_name', 'Black')
+        
+        # 清屏并显示棋盘
+        print("\n" + "=" * 60)
+        print(f"Game: {game_id} | Move {move_num}: {white_name} vs {black_name}")
+        print("=" * 60)
+        
+        # 渲染棋盘（ASCII）
+        ascii_board = board.unicode()
+        print(ascii_board)
+        
+        # 显示最后一步
+        print(f"\nLast move: {move.uci()}")
+        print(f"FEN: {board.fen()}")
+        
+        # 短暂暂停以便观察
+        await asyncio.sleep(0.3)
+    
+    return on_move
+
+
 def main():
     """CLI 入口"""
     parser = argparse.ArgumentParser(description='ChessRL 训练脚本')
@@ -217,6 +292,8 @@ def main():
     parser.add_argument('--agents', type=int, default=8, help='智能体数量')
     parser.add_argument('--checkpoint', type=str, default=None, help='检查点路径')
     parser.add_argument('--verbose', action='store_true', help='详细日志')
+    parser.add_argument('--visualize', action='store_true', help='启用可视化对局（ASCII 显示）')
+    parser.add_argument('--viz-interval', type=int, default=10, help='可视化间隔（多少轮显示一次）')
     
     args = parser.parse_args()
     
@@ -227,7 +304,9 @@ def main():
             learning_rate=args.lr,
             num_agents=args.agents,
             checkpoint_path=args.checkpoint,
-            verbose=args.verbose
+            verbose=args.verbose,
+            visualize=args.visualize,
+            visualize_interval=args.viz_interval
         ))
         
         print("\n训练成功完成!")
