@@ -45,22 +45,21 @@ async def run_training(
     print("初始化训练环境...")
     
     # 导入依赖
-    from config.hot_reload import ConfigManager
+    from config.hot_reload import Config, get_config
     from model import AlphaZeroResNet, ReplayBuffer, Trainer, TrainingConfig
     from agent import ModelAgent, TeacherAgent
     from engine.scheduler import GameScheduler
-    from engine.scoring import ScoreManager
+    from engine.scoring import ScoringSystem
     
     # 加载配置
-    config = ConfigManager()
-    config.update({
-        'N_AGENTS': num_agents,
-        'BATCH_SIZE': batch_size,
-        'LR': learning_rate,
-        'REPLAY_BUFFER_SIZE': 500,
-        'MCTS_ITERATIONS': 50,
-        'CONCURRENT_GAMES': min(4, num_agents // 2)
-    })
+    config = get_config()
+    config.load("config/default.yaml")
+    config.set('N_AGENTS', num_agents)
+    config.set('BATCH_SIZE', batch_size)
+    config.set('LR', learning_rate)
+    config.set('REPLAY_BUFFER_SIZE', 500)
+    config.set('MCTS_ITERATIONS', 50)
+    config.set('CONCURRENT_GAMES', min(4, num_agents // 2))
     
     # 创建模型池
     print(f"创建 {num_agents} 个智能体...")
@@ -107,20 +106,18 @@ async def run_training(
     training_config = TrainingConfig(
         batch_size=batch_size,
         learning_rate=learning_rate,
-        alpha_distill=config.get('ALPHA', 1.0),
-        beta_selfplay=config.get('BETA', 0.5),
-        gamma_l2=config.get('GAMMA', 0.01)
+        alpha=config.get('ALPHA', 1.0),
+        beta=config.get('BETA', 0.5),
+        gamma=config.get('GAMMA', 0.01)
     )
     
     trainer = Trainer(
-        agents=[a for a in agents if not a.is_teacher],  # 只训练 Student
-        replay_buffer=replay_buffer,
         config=training_config
     )
     
     # 创建调度器和计分管理器
     scheduler = GameScheduler(agents, max_concurrent=config.get('CONCURRENT_GAMES', 4))
-    score_manager = ScoreManager(window_size=config.get('WINDOW_X', 10))
+    score_manager = ScoringSystem(window_size=config.get('WINDOW_X', 10))
     
     # 可视化设置
     update_queue = None
