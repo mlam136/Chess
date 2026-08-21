@@ -273,3 +273,98 @@ class MatchScheduler(Scheduler):
         self._completed_games.clear()
         self._busy_agents.clear()
         self._game_counter = 0
+
+
+class GameScheduler(MatchScheduler):
+    """
+    游戏调度器 - 扩展 MatchScheduler 支持可视化回调
+    负责智能体配对、并发控制、游戏生命周期管理
+    """
+    
+    def __init__(
+        self,
+        agents: list,
+        max_concurrent: int = 4,
+        scoring_system: ScoringSystem = None,
+    ):
+        """
+        初始化游戏调度器
+        
+        Args:
+            agents: 智能体列表
+            max_concurrent: 最大并发对局数
+            scoring_system: 计分系统（可选）
+        """
+        config = MatchConfig(max_concurrent_games=max_concurrent)
+        scoring = scoring_system or ScoringSystem()
+        
+        super().__init__(scoring_system=scoring, config=config)
+        
+        # 注册智能体
+        agent_ids = [a.agent_id for a in agents]
+        self.register_agents(agent_ids)
+        
+        # 保存智能体引用
+        self._agents = {a.agent_id: a for a in agents}
+    
+    async def play_game(self, matchup: tuple, callback=None) -> dict:
+        """
+        执行一局游戏
+        
+        Args:
+            matchup: (white_agent, black_agent) 元组
+            callback: 可选的可视化回调函数 async fn(board, move, info)
+            
+        Returns:
+            dict: 游戏结果信息
+        """
+        white_agent, black_agent = matchup
+        
+        # 创建游戏
+        game = await self.create_game(
+            white_agent=white_agent.agent_id if hasattr(white_agent, 'agent_id') else white_agent,
+            black_agent=black_agent.agent_id if hasattr(black_agent, 'agent_id') else black_agent,
+        )
+        
+        if not game:
+            return None
+        
+        # 开始游戏
+        game.start()
+        
+        # 执行游戏循环
+        while not game.is_game_over():
+            # 获取当前玩家
+            current_color = game.board.turn
+            current_agent = white_agent if current_color else black_agent
+            
+            # 获取走法
+            move = await current_agent.get_move(game.board)
+            
+            if move is None:
+                # 无合法走法，游戏中断
+                break
+            
+            # 执行走法
+            game.make_move(move)
+            
+            # 调用可视化回调
+            if callback:
+                info = {
+                    'game_id': game.game_id,
+                    'move_number': len(game.move_history),
+                    'white_name': white_agent.agent_id if hasattr(white_agent, 'agent_id') else white_agent,
+                    'black_name': black_agent.agent_id if hasattr(black_agent, 'agent_id') else black_agent,
+                }
+                await callback(game.board, move, info)
+        
+        # 获取结果
+        result = game.get_result()
+        
+        return {
+            'game_id': game.game_id,
+            'white_id': white_agent.agent_id if hasattr(white_agent, 'agent_id') else white_agent,
+            'black_id': black_agent.agent_id if hasattr(black_agent, 'agent_id') else black_agent,
+            'result': result.result_code if result else 0,
+            'trajectory': getattr(game, 'trajectory', []),
+        }

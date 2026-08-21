@@ -5,7 +5,7 @@
 from .board import Board, BoardState
 from .game import Game, GameState
 from .rules import MoveValidator, MoveResult, RuleChecker
-from .scheduler import Scheduler, MatchScheduler
+from .scheduler import Scheduler, MatchScheduler, GameScheduler
 from .scoring import ScoringSystem, AgentScore
 
 __all__ = [
@@ -18,6 +18,7 @@ __all__ = [
     'RuleChecker',
     'Scheduler',
     'MatchScheduler',
+    'GameScheduler',
     'ScoringSystem',
     'AgentScore',
 ]
