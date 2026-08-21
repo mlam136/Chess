@@ -1,7 +1,20 @@
-python-chess>=1.0
-torch>=2.1
-pygame>=2.5
-numpy>=1.24
-pydantic>=2.0
-pyyaml>=6.0
-tqdm>=4.65
+# ChessRL 依赖列表
+# 核心依赖
+python-chess>=1.0      # 国际象棋规则引擎
+torch>=2.1             # 深度学习框架
+pygame>=2.5            # 图形渲染库
+numpy>=1.24            # 数值计算
+
+# 配置与数据验证
+pydantic>=2.0          # 数据验证
+pyyaml>=6.0            # YAML 配置解析
+
+# 训练工具
+tqdm>=4.65             # 进度条
+tensorboard>=2.14      # 训练日志可视化 (可选)
+
+# 测试工具 (可选)
+pytest>=7.4            # 单元测试框架
+
+# 性能分析 (可选)
+psutil>=5.9            # 系统监控 (内存/CPU)
