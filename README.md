@@ -140,13 +140,33 @@ python scripts/demo_p0.py
 启动 8 个智能体的完整训练流程：
 
 ```bash
-python scripts/train.py
+# 无头训练（服务器默认）
+python scripts/train.py --epochs 100
+
+# ASCII 终端可视化（轻量级）
+python scripts/train.py --epochs 100 --ascii --viz-interval 5
+
+# GUI 多窗口监控（本地开发推荐）
+python scripts/train.py --epochs 100 --gui
+
+# 多棋盘实时监控（同时观看 4 局）
+python scripts/train.py --epochs 100 --multi-viz --num-windows 4 --refresh-rate 1.0
 ```
 
+**参数说明**:
+- `--epochs`: 训练轮次
+- `--ascii`: 启用终端 ASCII 棋盘显示
+- `--viz-interval`: 每隔 N 轮显示一次对局（默认 10）
+- `--gui`: 启用 Tkinter GUI 监控窗口
+- `--multi-viz`: 启用多窗口监控模式
+- `--num-windows`: 同时显示的棋盘窗口数（默认 4）
+- `--refresh-rate`: 窗口刷新频率 Hz（默认 1.0）
+
 **输出**:
-- 实时 Loss 曲线 (TensorBoard)
+- 实时 Loss 曲线 (TensorBoard / GUI)
 - 每轮积分榜更新
 - 检查点自动保存 (`logs/checkpoints/`)
+- 多局实时对弈画面（如启用可视化）
 
 ### 3. 人机对战模式
 
@@ -252,7 +272,8 @@ chess-rl/
 │   ├── scoreboard.py             # 积分面板
 │   ├── loss_chart.py             # Loss 曲线图
 │   ├── log_panel.py              # 日志面板
-│   └── assets.py                 # 资源加载
+│   ├── assets.py                 # 资源加载
+│   └── training_overlay.py       # 训练监控 GUI（多窗口）
 │
 ├── api/                          # API 接口
 │   ├── events.py                 # 事件总线
@@ -260,7 +281,7 @@ chess-rl/
 │
 ├── scripts/                      # 运行脚本
 │   ├── demo_p0.py                # P0 演示
-│   ├── train.py                  # 训练脚本
+│   ├── train.py                  # 训练脚本（支持可视化）
 │   ├── eval.py                   # 评估脚本
 │   └── human_vs_ai.py            # 人机对战
 │
@@ -404,6 +425,22 @@ config = Config()
 # 修改 YAML 文件后
 reload_config()  # 重新加载
 ```
+
+### Q6: 如何在训练时观看实时对局？
+
+**A**: 使用可视化参数启动训练：
+```bash
+# 终端 ASCII 显示（最轻量）
+python scripts/train.py --epochs 100 --ascii --viz-interval 5
+
+# GUI 单窗口监控
+python scripts/train.py --epochs 100 --gui
+
+# 多窗口同时监控 4 局
+python scripts/train.py --epochs 100 --multi-viz --num-windows 4
+```
+
+**注意**: 可视化会略微降低训练速度，建议本地开发时使用，服务器训练用无头模式。
 
 ## 🛠️ 维护手册
 

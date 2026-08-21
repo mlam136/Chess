@@ -6,6 +6,7 @@ from .scoreboard import ScoreboardPanel
 from .assets import AssetLoader
 from .loss_chart import LossChart, MultiChartPanel
 from .log_panel import LogPanel
+from .training_overlay import TrainingOverlay
 
 __all__ = [
     'VisualizationApp',
@@ -15,4 +16,5 @@ __all__ = [
     'LossChart',
     'MultiChartPanel',
     'LogPanel',
+    'TrainingOverlay',
 ]

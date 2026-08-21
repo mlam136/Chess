@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-纯训练脚本 - 无 UI，命令行运行
+纯训练脚本 - 支持 GUI 可视化监控
 
 用法:
-    python scripts/train.py --epochs 100 --batch-size 64
-    python scripts/train.py --epochs 100 --visualize  # 带可视化对局
+    python scripts/train.py --epochs 100 --batch-size 64           # 无可视化
+    python scripts/train.py --epochs 100 --gui                     # 带 GUI 监控窗口
+    python scripts/train.py --epochs 100 --gui --ascii             # GUI + ASCII 双模式
 """
 
 import argparse
 import asyncio
 import time
+import threading
+import queue
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 
 
 async def run_training(
@@ -21,8 +24,9 @@ async def run_training(
     num_agents: int = 8,
     checkpoint_path: Optional[str] = None,
     verbose: bool = False,
-    visualize: bool = False,
-    visualize_interval: int = 10
+    gui_viz: bool = False,
+    ascii_viz: bool = False,
+    viz_interval: int = 10
 ):
     """
     运行训练循环
@@ -34,8 +38,9 @@ async def run_training(
         num_agents: 智能体数量
         checkpoint_path: 检查点路径
         verbose: 详细日志
-        visualize: 是否启用可视化对局
-        visualize_interval: 可视化间隔（多少轮显示一次）
+        gui_viz: 是否启用 GUI 可视化窗口
+        ascii_viz: 是否启用 ASCII 终端显示
+        viz_interval: 可视化间隔（多少轮显示一次）
     """
     print("初始化训练环境...")
     
@@ -117,28 +122,50 @@ async def run_training(
     scheduler = GameScheduler(agents, max_concurrent=config.get('CONCURRENT_GAMES', 4))
     score_manager = ScoreManager(window_size=config.get('WINDOW_X', 10))
     
-    # 可视化回调
+    # 可视化设置
+    update_queue = None
+    gui_overlay = None
+    gui_thread = None
     viz_callback = None
-    if visualize:
+    
+    if gui_viz:
         try:
-            from viz.board_widget import ChessBoardWidget
-            viz_callback = create_viz_callback(viz_interval=visualize_interval)
-            print(f"✓ 可视化已启用 (每 {visualize_interval} 轮显示一次)")
+            # 启动 GUI 线程
+            update_queue = queue.Queue()
+            gui_overlay, gui_thread = start_gui_thread(update_queue)
+            viz_callback = create_gui_callback(update_queue, viz_interval)
+            print(f"✓ GUI 可视化已启动")
         except ImportError as e:
-            print(f"⚠ 可视化模块不可用：{e}")
-            print("  继续无可视化训练...")
-            visualize = False
+            print(f"⚠ GUI 模块不可用：{e}")
+            print("  回退到 ASCII 模式...")
+            gui_viz = False
+            ascii_viz = True
+    
+    if ascii_viz and not gui_viz:
+        try:
+            viz_callback = create_ascii_callback(viz_interval=viz_interval)
+            print(f"✓ ASCII 可视化已启用 (每 {viz_interval} 轮显示一次)")
+        except ImportError as e:
+            print(f"⚠ ASCII 可视化模块不可用：{e}")
     
     # 训练循环
     print(f"\n开始训练 - {num_epochs} 轮")
-    if visualize:
-        print("模式：带可视化对局")
+    if gui_viz:
+        print("模式：GUI 实时监控窗口")
+    elif ascii_viz:
+        print(f"模式：ASCII 终端显示 (间隔={viz_interval})")
+    else:
+        print("模式：无头训练 (仅日志)")
     print("=" * 60)
     
     start_time = time.time()
     
     for epoch in range(1, num_epochs + 1):
         epoch_start = time.time()
+        
+        # 更新 GUI 状态
+        if gui_viz and update_queue:
+            update_queue.put(("status", {"training": True, "epoch": epoch, "total_epochs": num_epochs}))
         
         # 1. 匹配对局
         matchups = scheduler.create_matchups()
@@ -150,9 +177,9 @@ async def run_training(
         for game in matchups:
             # 检查是否需要可视化此局
             should_visualize = (
-                visualize and 
+                (gui_viz or ascii_viz) and 
                 viz_callback and 
-                epoch % visualize_interval == 0 and
+                epoch % viz_interval == 0 and
                 displayed_games == 0  # 每轮只显示一局
             )
             
@@ -182,8 +209,13 @@ async def run_training(
             score_manager.update_identities(agents)
         
         # 4. 训练
+        loss_info = None
         if len(replay_buffer) >= batch_size:
             loss_info = await trainer.train_step()
+            
+            # 更新 GUI 指标
+            if gui_viz and update_queue and loss_info:
+                update_queue.put(("metrics", {"loss": loss_info['total']}))
             
             if verbose:
                 print(f"Epoch {epoch:3d} | "
@@ -192,7 +224,7 @@ async def run_training(
                       f"Distill: {loss_info['distill']:.4f} | "
                       f"SelfPlay: {loss_info['selfplay']:.4f}")
             else:
-                if epoch % 10 == 0:
+                if epoch % 10 == 0 or loss_info:
                     print(f"Epoch {epoch:3d} | Loss: {loss_info['total']:.4f}")
         
         epoch_time = time.time() - epoch_start
@@ -221,6 +253,12 @@ async def run_training(
     
     total_time = time.time() - start_time
     
+    # 通知 GUI 训练结束
+    if gui_viz and update_queue:
+        update_queue.put(("stop", {}))
+        # 等待 GUI 线程退出
+        gui_thread.join(timeout=2.0)
+    
     # 打印总结
     print("\n" + "=" * 60)
     print("训练完成!")
@@ -240,9 +278,76 @@ async def run_training(
     }
 
 
-def create_viz_callback(viz_interval: int = 10):
+def start_gui_thread(update_queue: queue.Queue):
     """
-    创建可视化回调函数
+    在独立线程中启动 GUI 监控窗口
+    
+    Args:
+        update_queue: 用于接收训练更新消息的队列
+        
+    Returns:
+        (overlay, thread) - GUI 覆盖层对象和线程
+    """
+    import tkinter as tk
+    from viz.training_overlay import TrainingOverlay
+    
+    # 创建 Tk 根窗口
+    root = tk.Tk()
+    root.withdraw()  # 先隐藏，等初始化完成再显示
+    
+    # 创建覆盖层
+    overlay = TrainingOverlay(root, update_queue)
+    
+    # 显示窗口
+    root.deiconify()
+    
+    # 创建 GUI 线程
+    def gui_loop():
+        try:
+            root.mainloop()
+        except Exception as e:
+            print(f"GUI 错误：{e}")
+    
+    thread = threading.Thread(target=gui_loop, daemon=True)
+    thread.start()
+    
+    return overlay, thread
+
+
+def create_gui_callback(update_queue: queue.Queue, viz_interval: int = 10):
+    """
+    创建 GUI 可视化回调函数
+    
+    Args:
+        update_queue: 消息队列
+        viz_interval: 可视化间隔
+        
+    Returns:
+        异步回调函数，接收 (board, move, info) 参数
+    """
+    import chess
+    
+    async def on_move(board: chess.Board, move: chess.Move, info: dict):
+        """对局移动回调"""
+        # 发送棋盘状态到 GUI
+        board_state = {
+            'fen': board.fen(),
+            'last_move': move.uci(),
+            'turn': 'white' if board.turn else 'black'
+        }
+        update_queue.put(("board", board_state))
+        
+        # 发送日志
+        game_id = info.get('game_id', '?')
+        move_num = info.get('move_number', 0)
+        update_queue.put(("log", f"Game {game_id} | Move {move_num}: {move.uci()}"))
+    
+    return on_move
+
+
+def create_ascii_callback(viz_interval: int = 10):
+    """
+    创建 ASCII 终端可视化回调函数
     
     Args:
         viz_interval: 可视化间隔
@@ -250,11 +355,7 @@ def create_viz_callback(viz_interval: int = 10):
     Returns:
         异步回调函数，接收 (board, move, info) 参数
     """
-    from viz.board_widget import ChessBoardWidget
     import chess
-    
-    # 创建棋盘 widget（文本模式）
-    board_widget = ChessBoardWidget()
     
     async def on_move(board: chess.Board, move: chess.Move, info: dict):
         """对局移动回调"""
@@ -292,7 +393,8 @@ def main():
     parser.add_argument('--agents', type=int, default=8, help='智能体数量')
     parser.add_argument('--checkpoint', type=str, default=None, help='检查点路径')
     parser.add_argument('--verbose', action='store_true', help='详细日志')
-    parser.add_argument('--visualize', action='store_true', help='启用可视化对局（ASCII 显示）')
+    parser.add_argument('--gui', action='store_true', help='启用 GUI 可视化窗口')
+    parser.add_argument('--ascii', action='store_true', help='启用 ASCII 终端显示')
     parser.add_argument('--viz-interval', type=int, default=10, help='可视化间隔（多少轮显示一次）')
     
     args = parser.parse_args()
@@ -305,8 +407,9 @@ def main():
             num_agents=args.agents,
             checkpoint_path=args.checkpoint,
             verbose=args.verbose,
-            visualize=args.visualize,
-            visualize_interval=args.viz_interval
+            gui_viz=args.gui,
+            ascii_viz=args.ascii,
+            viz_interval=args.viz_interval
         ))
         
         print("\n训练成功完成!")
